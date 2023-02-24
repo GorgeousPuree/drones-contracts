@@ -5,5 +5,17 @@ const HpprsProjectOrchestrator = artifacts.require("HpprsProjectOrchestrator");
 module.exports = async function (deployer) {
     await deployer.deploy(Hpprs, 'HPPRS', 'HPPRS', [], [], [], [], 'hpprs', 'hpprs', '0xE2609354791Bf57E54B3f7F9A26b2dacBed61DA1');
     await deployer.deploy(Drones, 4);
-    await deployer.deploy(HpprsProjectOrchestrator, Drones.address, Hpprs.address, 2, web3.utils.toWei(String(0.111), 'ether'), 3);
+    await deployer.deploy(HpprsProjectOrchestrator,
+        Drones.address,
+        Hpprs.address,
+        '0x9c01B4EE5f92f9E3839cf017650921C0B9Cb0DBf',
+        1,
+        web3.utils.toWei(String(0.099), 'ether'),
+        web3.utils.toWei(String(0.111), 'ether'),
+        500,
+        1500,
+        2000,
+        3,
+        1
+    );
 }

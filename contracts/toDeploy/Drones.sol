@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.0;
 
 import "erc721a/contracts/ERC721A.sol";
@@ -44,7 +46,7 @@ contract Drones is ERC721A, Ownable {
     }
 
     modifier onlyController() {
-        require(controllers[msg.sender], "Wrong caller!");
+        require(controllers[msg.sender], "Wrong caller");
         _;
     }
 
