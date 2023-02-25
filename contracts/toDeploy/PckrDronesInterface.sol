@@ -1,5 +1,5 @@
 pragma solidity ^0.8.0;
 
-interface DronesInterface {
+interface PckrDronesInterface {
     function airdrop(address receiver, uint256 amount) external;
 }

@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import "erc721a/contracts/ERC721A.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Drones is ERC721A, Ownable {
+contract PckrDrones is ERC721A, Ownable {
     uint256 public maxSupply;
     string public baseURI;
 
@@ -13,7 +13,7 @@ contract Drones is ERC721A, Ownable {
 
     constructor(
         uint256 _maxSupply
-    ) ERC721A("DRONES", "DRNS") {
+    ) ERC721A("PCKR DRONES", "PCKR-DRNS") {
         maxSupply = _maxSupply;
     }
 
@@ -23,7 +23,7 @@ contract Drones is ERC721A, Ownable {
         maxSupply = _maxSupply;
     }
 
-    function setBaseURI(string memory _baseURIArg) external onlyController {
+    function setBaseURI(string memory _baseURIArg) external onlyOwner {
         baseURI = _baseURIArg;
     }
 

@@ -2,24 +2,20 @@
 
 pragma solidity ^0.8.0;
 
-import "./DronesInterface.sol";
+import "./PckrDronesInterface.sol";
 import "./HpprsInterface.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract HpprsProjectOrchestrator is Ownable {
-    uint256 public hpprsNumberToTrade;
+contract PckrDronesOrchestrator is Ownable {
     uint256 public dronesMintPrice;
     uint256 public dronesPreMintPrice;
-    uint256 public maxPreMintsNumber;
-    uint256 public maxMintedNumber;
-    uint256 public maxTradedNumber;
-    uint256 public mintedNumber;
-    uint256 public tradedNumber;
+
+    uint256 public maxPreMintsPerWallet;
+    uint256 public maxMintsPerTransaction;
 
     address public secret;
-    address public vault;
 
-    DronesInterface public drones;
+    PckrDronesInterface public drones;
     HpprsInterface public hpprs;
     DronesState public dronesState;
     SaleState public saleState;
@@ -29,28 +25,27 @@ contract HpprsProjectOrchestrator is Ownable {
     enum DronesState{TRADE_ONLY, SALE_ONLY, TRADE_AND_SALE, STOPPED}
     enum SaleState{PRE, PUBLIC}
 
+    event Mint(address owner, uint256 tokenAmount);
+    event Trade(address owner, uint256 tokenAmount);
+
     constructor(
         address _drones,
         address _hpprs,
         address _secret,
-        uint256 _hpprsNumberToTrade,
         uint256 _dronesPreMintPrice,
         uint256 _dronesMintPrice,
-        uint256 _maxPreMintsNumber,
-        uint256 _maxMintedNumber,
-        uint256 _maxTradedNumber,
+        uint256 _maxPreMintsPerWallet,
+        uint256 _maxMintsPerTransaction,
         DronesState _droneState,
         SaleState _saleState
     ) {
         hpprs = HpprsInterface(_hpprs);
-        drones = DronesInterface(_drones);
+        drones = PckrDronesInterface(_drones);
         secret = _secret;
         dronesPreMintPrice = _dronesPreMintPrice;
         dronesMintPrice = _dronesMintPrice;
-        hpprsNumberToTrade = _hpprsNumberToTrade;
-        maxPreMintsNumber = _maxPreMintsNumber;
-        maxMintedNumber = _maxMintedNumber;
-        maxTradedNumber = _maxTradedNumber;
+        maxPreMintsPerWallet = _maxPreMintsPerWallet;
+        maxMintsPerTransaction = _maxMintsPerTransaction;
         dronesState = _droneState;
         saleState = _saleState;
     }
@@ -59,24 +54,20 @@ contract HpprsProjectOrchestrator is Ownable {
         address _drones,
         address _hpprs,
         address _secret,
-        uint256 _hpprsNumberToTrade,
         uint256 _dronesPreMintPrice,
         uint256 _dronesMintPrice,
-        uint256 _maxPreMintsNumber,
-        uint256 _maxMintedNumber,
-        uint256 _maxTradedNumber,
+        uint256 _maxPreMintsPerWallet,
+        uint256 _maxMintsPerTransaction,
         DronesState _droneState,
         SaleState _saleState
     ) external onlyOwner {
         hpprs = HpprsInterface(_hpprs);
-        drones = DronesInterface(_drones);
+        drones = PckrDronesInterface(_drones);
         secret = _secret;
         dronesMintPrice = _dronesMintPrice;
         dronesPreMintPrice = _dronesPreMintPrice;
-        hpprsNumberToTrade = _hpprsNumberToTrade;
-        maxPreMintsNumber = _maxPreMintsNumber;
-        maxMintedNumber = _maxMintedNumber;
-        maxTradedNumber = _maxTradedNumber;
+        maxPreMintsPerWallet = _maxPreMintsPerWallet;
+        maxMintsPerTransaction = _maxMintsPerTransaction;
         dronesState = _droneState;
         saleState = _saleState;
     }
@@ -85,28 +76,27 @@ contract HpprsProjectOrchestrator is Ownable {
         saleState = _saleState;
     }
 
+    function setDronesState(DronesState _dronesState) external onlyOwner {
+        dronesState = _dronesState;
+    }
+
     function setSalePrices(uint256 _dronesPreMintPrice, uint256 _dronesMintPrice) external onlyOwner {
         dronesPreMintPrice = _dronesPreMintPrice;
         dronesMintPrice = _dronesMintPrice;
     }
 
-    function setDronesState(DronesState _dronesState) external onlyOwner {
-        dronesState = _dronesState;
-    }
-
     function preMintDrone(uint256 tokenAmount, bytes calldata signature) external payable {
         require(dronesState == DronesState.TRADE_AND_SALE || dronesState == DronesState.SALE_ONLY, "Sale is closed");
         require(saleState == SaleState.PRE, "Not presale");
-        require(tokenAmount + walletsPreMints[msg.sender] <= maxPreMintsNumber, "Cannot exceed max premint");
+        require(tokenAmount + walletsPreMints[msg.sender] <= maxPreMintsPerWallet, "Cannot exceed max premint");
         require(msg.value == tokenAmount * dronesPreMintPrice, "Wrong ETH amount");
-        require(mintedNumber + tokenAmount <= maxMintedNumber, "Mint supply is exhausted");
         require(
             _verifyHashSignature(keccak256(abi.encode(msg.sender)), signature),
             "Signature is invalid"
         );
 
         walletsPreMints[msg.sender] += tokenAmount;
-        mintedNumber += tokenAmount;
+        emit Mint(msg.sender, tokenAmount);
         drones.airdrop(msg.sender, tokenAmount);
     }
 
@@ -114,26 +104,22 @@ contract HpprsProjectOrchestrator is Ownable {
         require(dronesState == DronesState.TRADE_AND_SALE || dronesState == DronesState.SALE_ONLY, "Sale is closed");
         require(saleState == SaleState.PUBLIC, "Not public sale");
         require(msg.value == tokenAmount * dronesMintPrice, "Wrong ETH amount");
-        require(mintedNumber + tokenAmount <= maxMintedNumber, "Mint supply is exhausted");
+        require(tokenAmount <= maxMintsPerTransaction, "Limit per transaction");
 
-        mintedNumber += tokenAmount;
+        emit Mint(msg.sender, tokenAmount);
         drones.airdrop(msg.sender, tokenAmount);
     }
 
     function tradeDrone(uint256[] calldata hpprsIds) external {
         require(dronesState == DronesState.TRADE_AND_SALE || dronesState == DronesState.TRADE_ONLY, "Trade is closed");
-        require(hpprsIds.length % hpprsNumberToTrade == 0, "Wrong number of HPPRS");
-        uint256 numberOfDronesToGet = hpprsIds.length / hpprsNumberToTrade;
-
-        require(tradedNumber + numberOfDronesToGet <= maxTradedNumber, "Trade supply is exhausted");
 
         for (uint256 i = 0; i < hpprsIds.length; i++) {
             require(hpprs.ownerOf(hpprsIds[i]) == msg.sender, "Not HPPR owner");
             hpprs.burn(hpprsIds[i]);
         }
 
-        tradedNumber += numberOfDronesToGet;
-        drones.airdrop(msg.sender, numberOfDronesToGet);
+        emit Trade(msg.sender, hpprsIds.length * 2);
+        drones.airdrop(msg.sender, hpprsIds.length * 2);
     }
 
     function withdraw() external onlyOwner {
